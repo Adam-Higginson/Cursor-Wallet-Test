@@ -10,7 +10,6 @@ public struct ContentView: View {
     @State private var currentCredential: MDLDocument? = nil
     @State private var isLoading = true
     @State private var isErrorLoadingCredential = false
-    @State private var saveErrorMessage: String? = nil
 
     
     public init(credentialRepository: CredentialRepository) {
@@ -38,7 +37,7 @@ public struct ContentView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     
-                    Text("Driving Licence No: ****" + (currentCredential.map { String($0.documentNumber.suffix(4)) } ?? "****"))
+                    Text("Driving Licence No: " + (currentCredential?.documentNumber ?? "Unknown"))
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -105,17 +104,6 @@ public struct ContentView: View {
             }
         }
         .padding()
-        .overlay(alignment: .bottom) {
-            if let message = saveErrorMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(8)
-                    .background(.red.opacity(0.1))
-                    .cornerRadius(8)
-                    .padding(.bottom, 8)
-            }
-        }
         // .task runs when the view appears - perfect for loading data
         // Similar to useEffect in React or onMounted in Vue
         .task {
@@ -150,7 +138,8 @@ public struct ContentView: View {
     
     /// Handle the "Add MDL" button tap
     private func addCredential() {
-        saveErrorMessage = nil
+        // For now, just create a test credential
+        // In a real app, you'd navigate to a form or scan QR code
         Task {
             let testDocument = MDLDocument(
                 familyName: "Smith",
@@ -165,27 +154,17 @@ public struct ContentView: View {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            do {
-                try await credentialRepository.save(testDocument)
-                await checkForCredential()
-            } catch {
-                saveErrorMessage = error.localizedDescription
-                await checkForCredential()
-            }
+            
+            try? await credentialRepository.save(testDocument)
+            await checkForCredential() // Refresh the UI
         }
     }
-
+    
     /// Handle the "Remove MDL" button tap
     private func removeCredential() {
-        saveErrorMessage = nil
         Task {
-            do {
-                try await credentialRepository.delete()
-                await checkForCredential()
-            } catch {
-                saveErrorMessage = error.localizedDescription
-                await checkForCredential()
-            }
+            try? await credentialRepository.delete()
+            await checkForCredential() // Refresh the UI
         }
     }
 }
@@ -228,8 +207,8 @@ private struct PreviewHelperWithCredential: View {
                         birthDate: Date(timeIntervalSince1970: 645840000),
                         issueDate: Date(),
                         expiryDate: Date(timeIntervalSinceNow: 60 * 60 * 24 * 365 * 5),
-                        issuingCountry: "UK",
-                        issuingAuthority: "DVLA",
+                        issuingCountry: "US",
+                        issuingAuthority: "State of California",
                         documentNumber: "DL123456789",
                         drivingPrivileges: [DrivingPrivilege(vehicleCategoryCode: "B")]
                     ))

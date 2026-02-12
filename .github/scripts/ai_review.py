@@ -3,7 +3,6 @@ import os
 import sys
 import json
 import subprocess
-import urllib.request
 from anthropic import Anthropic
 
 def get_base_ref():
@@ -101,7 +100,7 @@ This code may have been generated or suggested by AI tools like Cursor. Your job
 
 # Output Format:
 
-Provide your review in this JSON format. You MUST include "line" (integer, 1-based line number in the file) for each issue so comments can be posted inline on the PR.
+Provide your review in this JSON format:
 {{
   "summary": "Brief overview of findings",
   "severity": "critical|high|medium|low",
@@ -122,7 +121,7 @@ Provide your review in this JSON format. You MUST include "line" (integer, 1-bas
   ]
 }}
 
-Be thorough but fair. Flag real issues, not stylistic nitpicks unless they impact security or maintainability. Always set "line" to the exact line number in the file where the issue applies (1-based).
+Be thorough but fair. Flag real issues, not stylistic nitpicks unless they impact security or maintainability.
 """
     
     message = client.messages.create(
@@ -147,128 +146,72 @@ def parse_review(review_text):
     
     return json.loads(review_text)
 
-def _inline_comment_body(issue):
-    """Build markdown body for a single inline comment."""
-    emoji = {'critical': '🚨', 'high': '⚠️', 'medium': '⚡', 'low': 'ℹ️'}.get(issue['severity'], 'ℹ️')
-    body = f"{emoji} **{issue['title']}** ({issue['severity']}) — *{issue['category']}*\n\n"
-    body += issue['description'] + "\n"
-    if issue.get('suggestion'):
-        body += "\n**Suggestion:** " + issue['suggestion'] + "\n"
-    if issue.get('code_example'):
-        body += "\n```swift\n" + issue['code_example'] + "\n```\n"
-    return body
-
-
-def _review_body_summary(review_data, issues_without_line):
-    """Build the top-level review body (summary + issues that have no line)."""
+def post_review_comment(review_data):
+    """Post review as PR comment"""
+    issues = review_data.get('issues', [])
+    positive = review_data.get('positive_notes', [])
     summary = review_data.get('summary', '')
     severity = review_data.get('severity', 'low')
-    positive = review_data.get('positive_notes', [])
-    body = f"""## 🤖 AI Code Review
-
+    
+    # Build comment
+    comment = f"""## 🤖 AI Code Review
+    
 **Summary:** {summary}
 
 **Overall Severity:** {severity.upper()}
+
 """
-    if issues_without_line:
-        body += "\n### Issues (no specific line)\n\n"
-        for issue in issues_without_line:
-            body += _inline_comment_body(issue) + "\n"
+    
+    if issues:
+        comment += "### Issues Found\n\n"
+        for issue in issues:
+            emoji = {
+                'critical': '🚨',
+                'high': '⚠️',
+                'medium': '⚡',
+                'low': 'ℹ️'
+            }.get(issue['severity'], 'ℹ️')
+            
+            comment += f"{emoji} **{issue['title']}** ({issue['severity']})\n"
+            comment += f"- **File:** `{issue['file']}`"
+            if issue.get('line'):
+                comment += f" (line {issue['line']})"
+            comment += f"\n- **Category:** {issue['category']}\n"
+            comment += f"- **Issue:** {issue['description']}\n"
+            if issue.get('suggestion'):
+                comment += f"- **Suggestion:** {issue['suggestion']}\n"
+            if issue.get('code_example'):
+                comment += f"\n```swift\n{issue['code_example']}\n```\n"
+            comment += "\n"
+    
     if positive:
-        body += "\n### ✅ Positive Notes\n\n"
+        comment += "### ✅ Positive Notes\n\n"
         for note in positive:
-            body += f"- {note}\n"
-    body += "\n---\n*This review was performed by Claude AI. Please verify all suggestions.*"
-    return body
-
-
-def post_review_comment(review_data):
-    """Post review as a GitHub PR review with inline comments on the diff."""
-    issues = review_data.get('issues', [])
+            comment += f"- {note}\n"
+    
+    comment += "\n---\n*This review was performed by Claude AI. Please verify all suggestions.*"
+    
+    # Write comment to file
+    with open('/tmp/review_comment.md', 'w') as f:
+        f.write(comment)
+    
+    # Post using GitHub CLI
     pr_number = os.environ['PR_NUMBER']
     repo = os.environ['REPO']
-    head_sha = os.environ.get('HEAD_SHA', '').strip()
-    token = os.environ.get('GITHUB_TOKEN', '')
-
-    if not token:
-        print("Warning: GITHUB_TOKEN not set, cannot post review")
-        return
-    if not head_sha:
-        result = subprocess.run(
-            ['gh', 'pr', 'view', pr_number, '--repo', repo, '--json', 'headRefOid', '-q', '.headRefOid'],
-            capture_output=True, text=True, env=os.environ
-        )
-        head_sha = (result.stdout or '').strip()
-    if not head_sha:
-        print("Warning: Could not get head SHA for review")
-        head_sha = None
-
-    # Split issues into those with line (inline) vs without (body only)
-    inline_issues = [i for i in issues if i.get('line') and i.get('file')]
-    issues_without_line = [i for i in issues if not (i.get('line') and i.get('file'))]
-
-    # Build review payload for GitHub API
-    owner, repo_name = repo.split('/', 1)
-    review_body = _review_body_summary(review_data, issues_without_line)
-
-    comments_payload = []
-    for issue in inline_issues:
-        path = issue['file']
-        line = int(issue['line']) if isinstance(issue['line'], (int, float)) else int(issue.get('line', 0))
-        if line < 1:
-            continue
-        comments_payload.append({
-            "path": path,
-            "line": line,
-            "side": "RIGHT",
-            "body": _inline_comment_body(issue),
-        })
-
-    payload = {
-        "body": review_body,
-        "event": "COMMENT",
-        "comments": comments_payload,
-    }
-    if head_sha:
-        payload["commit_id"] = head_sha
-
-    url = f"https://api.github.com/repos/{owner}/{repo_name}/pulls/{pr_number}/reviews"
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), method='POST')
-    req.add_header('Accept', 'application/vnd.github+json')
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('X-GitHub-Api-Version', '2022-11-28')
-    req.add_header('Content-Type', 'application/json')
-
-    try:
-        with urllib.request.urlopen(req) as resp:
-            if resp.status in (200, 201):
-                print(f"✅ Review posted with {len(comments_payload)} inline comment(s)")
-            else:
-                print(f"Unexpected status {resp.status}")
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode('utf-8', errors='replace')
-        print(f"Failed to post review: {e.code} {e.reason}")
-        print(err_body[:500])
-        # Fallback: post as single PR comment so the review is not lost
-        fallback = f"""## 🤖 AI Code Review (fallback — inline review failed)
-
-**Summary:** {review_data.get('summary', '')}
-
-**Overall Severity:** {review_data.get('severity', 'low').upper()}
-
-See full details below. (Posting inline comments failed: {e.code})
-"""
-        with open('/tmp/review_comment.md', 'w') as f:
-            f.write(fallback + "\n\n" + review_body)
-        subprocess.run([
-            'gh', 'pr', 'comment', pr_number, '--repo', repo, '--body-file', '/tmp/review_comment.md'
-        ], env=os.environ)
-
-    # Log findings but never fail the build — review is advisory only
-    critical_issues = [i for i in issues if i.get('severity') == 'critical']
+    
+    subprocess.run([
+        'gh', 'pr', 'comment', pr_number,
+        '--repo', repo,
+        '--body-file', '/tmp/review_comment.md'
+    ], env=os.environ)
+    
+    # Exit with error if critical issues found
+    critical_issues = [i for i in issues if i['severity'] == 'critical']
     if critical_issues:
-        print(f"⚠️ Found {len(critical_issues)} critical issue(s) — please review")
-    print("✅ Review complete")
+        print(f"❌ Found {len(critical_issues)} critical issue(s)")
+        sys.exit(1)
+    else:
+        print("✅ Review complete")
 
 def main():
     print("🔍 Starting AI code review...")

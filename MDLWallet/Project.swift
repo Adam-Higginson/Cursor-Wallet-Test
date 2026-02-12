@@ -20,7 +20,7 @@ let project = Project(
                 "MDLWallet/Sources",
                 "MDLWallet/Resources",
             ],
-            dependencies: [.external(name: "SwiftCBOR")]
+            dependencies: []
         ),
         .target(
             name: "MDLWalletTests",
@@ -31,7 +31,7 @@ let project = Project(
             buildableFolders: [
                 "MDLWallet/Tests"
             ],
-            dependencies: [.target(name: "MDLWallet"), .external(name: "SwiftCBOR")]
+            dependencies: [.target(name: "MDLWallet")]
         ),
     ]
 )

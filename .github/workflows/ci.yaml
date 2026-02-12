@@ -12,7 +12,7 @@ on:
 jobs:
   test:
     name: Test
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,17 +20,13 @@ jobs:
       - name: Install Tuist
         run: brew install tuist
 
-      - name: Install dependencies
-        working-directory: MDLWallet
-        run: tuist install
-
       - name: Run tests
         working-directory: MDLWallet
         run: tuist test
 
   lint:
     name: Lint
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,4 +35,4 @@ jobs:
         run: brew install swiftlint
 
       - name: Run SwiftLint
-        run: swiftlint lint MDLWallet --config .swiftlint.yml
+        run: swiftlint lint --path MDLWallet --config .swiftlint.yml

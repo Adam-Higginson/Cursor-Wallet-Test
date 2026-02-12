@@ -1,0 +1,38 @@
+# CI: Build, test, and lint on push and pull_request.
+# Runs Tuist tests on macOS and SwiftLint on the Swift codebase.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tuist
+        run: brew install tuist
+
+      - name: Run tests
+        working-directory: MDLWallet
+        run: tuist test
+
+  lint:
+    name: Lint
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: swiftlint lint --path MDLWallet --config .swiftlint.yml

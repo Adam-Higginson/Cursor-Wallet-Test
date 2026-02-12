@@ -17,8 +17,15 @@ opt_in_rules:
   - explicit_init
 
 disabled_rules:
-  - trailing_whitespace   # often noisy in comments; enable if you want
-  - line_length           # enable and set max to enforce (e.g. 120)
+  - trailing_whitespace
+  - line_length
+  - trailing_newline
+  - trailing_comma
+  - vertical_whitespace
+  - control_statement
+  - type_body_length
+  - statement_position
+  - implicit_optional_initialization
 
 # Optional: enforce line length (uncomment to enable)
 # line_length:

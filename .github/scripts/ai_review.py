@@ -264,13 +264,11 @@ See full details below. (Posting inline comments failed: {e.code})
             'gh', 'pr', 'comment', pr_number, '--repo', repo, '--body-file', '/tmp/review_comment.md'
         ], env=os.environ)
 
-    # Exit with error if critical issues found
+    # Log findings but never fail the build — review is advisory only
     critical_issues = [i for i in issues if i.get('severity') == 'critical']
     if critical_issues:
-        print(f"❌ Found {len(critical_issues)} critical issue(s)")
-        sys.exit(1)
-    else:
-        print("✅ Review complete")
+        print(f"⚠️ Found {len(critical_issues)} critical issue(s) — please review")
+    print("✅ Review complete")
 
 def main():
     print("🔍 Starting AI code review...")

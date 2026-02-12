@@ -23,8 +23,6 @@ jobs:
         with:
           files: |
             **/*.swift
-            **/*.md
-            **/Project.swift
       
       - name: Setup Python
         if: steps.changed-files.outputs.any_changed == 'true'

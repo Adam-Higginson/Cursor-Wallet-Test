@@ -1,0 +1,22 @@
+# Auto-detect text files and normalize line endings to LF
+* text=auto eol=lf
+
+# Swift
+*.swift text diff=swift
+
+# Scripts
+*.py text
+*.sh text
+*.yaml text
+*.yml text
+
+# Markdown and docs
+*.md text
+
+# Explicit binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

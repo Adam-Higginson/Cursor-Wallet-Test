@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE / editors
+.idea/
+*.swp
+*.swo
+*~
+
+# Tuist (when run from repo root)
+graph.dot
+Derived/
+
+# Local env / secrets (do not commit)
+.env
+.env.local

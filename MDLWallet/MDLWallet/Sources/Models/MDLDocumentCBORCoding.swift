@@ -15,6 +15,8 @@ private enum ISO180135 {
     static let namespace = "org.iso.18013.5.1"
 
     /// Data element identifiers (ISO 18013-5 §7.2.1).
+    /// Driving privilege entries use the same key names "issue_date" and "expiry_date"
+    /// as the document-level dates (ISO 18013-5 §7.2.4); they are disambiguated by context (inside each privilege map).
     enum Key {
         static let familyName = "family_name"
         static let givenName = "given_name"
@@ -29,37 +31,38 @@ private enum ISO180135 {
         static let nationality = "nationality"
         static let ageOver18 = "age_over_18"
         static let residentAddress = "resident_address"
-        // Driving privilege sub-keys (§7.2.4)
         static let vehicleCategoryCode = "vehicle_category_code"
         static let privilegeIssueDate = "issue_date"
         static let privilegeExpiryDate = "expiry_date"
     }
 }
 
-// MARK: - Date format
+// MARK: - Limits (security: prevent memory exhaustion)
 
-/// ISO 8601 date only (YYYY-MM-DD) for encoding/decoding per ISO 18013-5.
-private let iso8601DateFormatter: DateFormatter = {
-    let f = DateFormatter()
-    f.dateFormat = "yyyy-MM-dd"
-    f.timeZone = TimeZone(identifier: "UTC")
-    f.locale = Locale(identifier: "en_GB_POSIX")
-    return f
-}()
+private enum CBORLimits {
+    /// Maximum size of incoming CBOR payload (1 MiB).
+    static let maxDataSize = 1024 * 1024
+}
+
+// MARK: - Date format
+// ISO 18013-5 §7.2.1 uses calendar date only (no time or timezone). We use YYYY-MM-DD in UTC
+// so that encoding is unambiguous and round-trips correctly.
+
+private func makeDateFormatter() -> DateFormatter {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    formatter.timeZone = TimeZone(identifier: "UTC")
+    formatter.locale = Locale(identifier: "en_GB_POSIX")
+    return formatter
+}
 
 // MARK: - CBOR decode errors
 
 /// Errors when decoding an MDLDocument from CBOR.
+/// We expose only a generic invalidFormat to avoid leaking document structure to callers.
 public enum MDLCBORDecodeError: Error, Sendable {
-    case notAMap
-    case missingNamespace(String)
-    case missingRequiredKey(String)
-    case invalidStringValue(key: String)
-    case invalidDateValue(key: String, value: String)
-    case invalidDrivingPrivileges
-    case invalidPrivilegeEntry
-    case invalidByteString(key: String)
-    case invalidBool(key: String)
+    /// Decoded data is not valid mDL CBOR (structure, size, or content).
+    case invalidFormat
 }
 
 // MARK: - MDLDocumentCBORCoding
@@ -71,7 +74,8 @@ public enum MDLDocumentCBORCoding {
     /// Encodes an `MDLDocument` to CBOR as specified in ISO 18013-5 §7.
     /// Structure: one top-level map with namespace key and a nested map of data elements.
     public static func encode(_ document: MDLDocument) -> Data {
-        let itemsPairs = buildItemsMap(from: document)
+        let dateFormatter = makeDateFormatter()
+        let itemsPairs = buildItemsMap(from: document, dateFormatter: dateFormatter)
         let itemsDict = Dictionary(uniqueKeysWithValues: itemsPairs)
         let innerMap = CBOR.map(itemsDict)
         let topLevel = CBOR.map([.utf8String(ISO180135.namespace): innerMap])
@@ -79,35 +83,32 @@ public enum MDLDocumentCBORCoding {
         return Data(bytes)
     }
 
-    private static func buildItemsMap(from document: MDLDocument) -> [(CBOR, CBOR)] {
+    private static func buildItemsMap(from document: MDLDocument, dateFormatter: DateFormatter) -> [(CBOR, CBOR)] {
         var pairs: [(CBOR, CBOR)] = []
 
-        // Required string fields
         pairs.append((.utf8String(ISO180135.Key.familyName), .utf8String(document.familyName)))
         pairs.append((.utf8String(ISO180135.Key.givenName), .utf8String(document.givenName)))
-        pairs.append((.utf8String(ISO180135.Key.birthDate), .utf8String(iso8601DateFormatter.string(from: document.birthDate))))
-        pairs.append((.utf8String(ISO180135.Key.issueDate), .utf8String(iso8601DateFormatter.string(from: document.issueDate))))
-        pairs.append((.utf8String(ISO180135.Key.expiryDate), .utf8String(iso8601DateFormatter.string(from: document.expiryDate))))
+        pairs.append((.utf8String(ISO180135.Key.birthDate), .utf8String(dateFormatter.string(from: document.birthDate))))
+        pairs.append((.utf8String(ISO180135.Key.issueDate), .utf8String(dateFormatter.string(from: document.issueDate))))
+        pairs.append((.utf8String(ISO180135.Key.expiryDate), .utf8String(dateFormatter.string(from: document.expiryDate))))
         pairs.append((.utf8String(ISO180135.Key.issuingCountry), .utf8String(document.issuingCountry)))
         pairs.append((.utf8String(ISO180135.Key.issuingAuthority), .utf8String(document.issuingAuthority)))
         pairs.append((.utf8String(ISO180135.Key.documentNumber), .utf8String(document.documentNumber)))
 
-        // Driving privileges (array of maps)
         let privilegesArray: [CBOR] = document.drivingPrivileges.map { privilege in
             var entries: [(CBOR, CBOR)] = [
                 (.utf8String(ISO180135.Key.vehicleCategoryCode), .utf8String(privilege.vehicleCategoryCode))
             ]
-            if let d = privilege.issueDate {
-                entries.append((.utf8String(ISO180135.Key.privilegeIssueDate), .utf8String(iso8601DateFormatter.string(from: d))))
+            if let issueDate = privilege.issueDate {
+                entries.append((.utf8String(ISO180135.Key.privilegeIssueDate), .utf8String(dateFormatter.string(from: issueDate))))
             }
-            if let d = privilege.expiryDate {
-                entries.append((.utf8String(ISO180135.Key.privilegeExpiryDate), .utf8String(iso8601DateFormatter.string(from: d))))
+            if let expiryDate = privilege.expiryDate {
+                entries.append((.utf8String(ISO180135.Key.privilegeExpiryDate), .utf8String(dateFormatter.string(from: expiryDate))))
             }
             return .map(Dictionary(uniqueKeysWithValues: entries))
         }
         pairs.append((.utf8String(ISO180135.Key.drivingPrivileges), .array(privilegesArray)))
 
-        // Optional fields (omit if nil)
         if let portrait = document.portrait {
             pairs.append((.utf8String(ISO180135.Key.portrait), .byteString(Array(portrait))))
         }
@@ -128,82 +129,69 @@ public enum MDLDocumentCBORCoding {
 
     /// Decodes CBOR data into an `MDLDocument` per ISO 18013-5 §7.
     /// Expects structure: { "org.iso.18013.5.1": { "family_name": "...", ... } }.
+    /// Rejects payloads exceeding size or structural limits.
     public static func decode(_ data: Data) throws -> MDLDocument {
-        let bytes = [UInt8](data)
-        let cbor = try CBOR.decode(bytes)
-        guard case let .map(topMap) = cbor else {
-            throw MDLCBORDecodeError.notAMap
+        guard data.count <= CBORLimits.maxDataSize else {
+            throw MDLCBORDecodeError.invalidFormat
         }
-
+        let bytes = [UInt8](data)
+        guard let cbor = try? CBOR.decode(bytes) else {
+            throw MDLCBORDecodeError.invalidFormat
+        }
+        guard case let .map(topMap) = cbor else {
+            throw MDLCBORDecodeError.invalidFormat
+        }
         let namespaceKey = CBOR.utf8String(ISO180135.namespace)
         guard let itemsCbor = topMap[namespaceKey] else {
-            throw MDLCBORDecodeError.missingNamespace(ISO180135.namespace)
+            throw MDLCBORDecodeError.invalidFormat
         }
         guard case let .map(itemsMap) = itemsCbor else {
-            throw MDLCBORDecodeError.notAMap
+            throw MDLCBORDecodeError.invalidFormat
         }
+        let dateFormatter = makeDateFormatter()
+        return try parseDocument(from: itemsMap, dateFormatter: dateFormatter)
+    }
 
-        let getString = { (key: String) throws -> String in
-            guard let c = itemsMap[.utf8String(key)], case let .utf8String(s) = c else {
-                throw MDLCBORDecodeError.missingRequiredKey(key)
+    private static func parseDocument(from itemsMap: [CBOR: CBOR], dateFormatter: DateFormatter) throws -> MDLDocument {
+        func requiredString(_ key: String) throws -> String {
+            guard let cborValue = itemsMap[.utf8String(key)], case let .utf8String(string) = cborValue else {
+                throw MDLCBORDecodeError.invalidFormat
             }
-            return s
+            return string
         }
-        let getOptionalString = { (key: String) -> String? in
-            guard let c = itemsMap[.utf8String(key)], case let .utf8String(s) = c else { return nil }
-            return s
+        func optionalString(_ key: String) -> String? {
+            guard let cborValue = itemsMap[.utf8String(key)], case let .utf8String(string) = cborValue else {
+                return nil
+            }
+            return string
         }
-
         func parseDate(key: String, value: String) throws -> Date {
-            guard let date = iso8601DateFormatter.date(from: value) else {
-                throw MDLCBORDecodeError.invalidDateValue(key: key, value: value)
+            guard let date = dateFormatter.date(from: value) else {
+                throw MDLCBORDecodeError.invalidFormat
             }
             return date
         }
 
-        let familyName = try getString(ISO180135.Key.familyName)
-        let givenName = try getString(ISO180135.Key.givenName)
-        let birthDate = try parseDate(key: ISO180135.Key.birthDate, value: try getString(ISO180135.Key.birthDate))
-        let issueDate = try parseDate(key: ISO180135.Key.issueDate, value: try getString(ISO180135.Key.issueDate))
-        let expiryDate = try parseDate(key: ISO180135.Key.expiryDate, value: try getString(ISO180135.Key.expiryDate))
-        let issuingCountry = try getString(ISO180135.Key.issuingCountry)
-        let issuingAuthority = try getString(ISO180135.Key.issuingAuthority)
-        let documentNumber = try getString(ISO180135.Key.documentNumber)
+        let familyName = try requiredString(ISO180135.Key.familyName)
+        let givenName = try requiredString(ISO180135.Key.givenName)
+        let birthDate = try parseDate(key: ISO180135.Key.birthDate, value: try requiredString(ISO180135.Key.birthDate))
+        let issueDate = try parseDate(key: ISO180135.Key.issueDate, value: try requiredString(ISO180135.Key.issueDate))
+        let expiryDate = try parseDate(key: ISO180135.Key.expiryDate, value: try requiredString(ISO180135.Key.expiryDate))
+        let issuingCountry = try requiredString(ISO180135.Key.issuingCountry)
+        let issuingAuthority = try requiredString(ISO180135.Key.issuingAuthority)
+        let documentNumber = try requiredString(ISO180135.Key.documentNumber)
 
-        // Driving privileges
-        guard let privCbor = itemsMap[.utf8String(ISO180135.Key.drivingPrivileges)], case let .array(privArray) = privCbor else {
-            throw MDLCBORDecodeError.missingRequiredKey(ISO180135.Key.drivingPrivileges)
-        }
-        var drivingPrivileges: [DrivingPrivilege] = []
-        for item in privArray {
-            guard case let .map(entry) = item else { throw MDLCBORDecodeError.invalidPrivilegeEntry }
-            guard case let .utf8String(vehicleCategoryCode) = entry[.utf8String(ISO180135.Key.vehicleCategoryCode)] else {
-                throw MDLCBORDecodeError.invalidPrivilegeEntry
-            }
-            let issueDateStr = (entry[.utf8String(ISO180135.Key.privilegeIssueDate)]).flatMap { c in if case .utf8String(let s) = c { return s }; return nil }
-            let expiryDateStr = (entry[.utf8String(ISO180135.Key.privilegeExpiryDate)]).flatMap { c in if case .utf8String(let s) = c { return s }; return nil }
-            let privIssueDate = issueDateStr.flatMap { iso8601DateFormatter.date(from: $0) }
-            let privExpiryDate = expiryDateStr.flatMap { iso8601DateFormatter.date(from: $0) }
-            drivingPrivileges.append(DrivingPrivilege(vehicleCategoryCode: vehicleCategoryCode, issueDate: privIssueDate, expiryDate: privExpiryDate))
-        }
-        if drivingPrivileges.isEmpty {
-            throw MDLCBORDecodeError.invalidDrivingPrivileges
-        }
+        let drivingPrivileges = try parseDrivingPrivileges(from: itemsMap, dateFormatter: dateFormatter)
 
-        // Optionals
         var portrait: Data?
-        if let c = itemsMap[.utf8String(ISO180135.Key.portrait)], case let .byteString(bytes) = c {
-            portrait = Data(bytes)
+        if let cborValue = itemsMap[.utf8String(ISO180135.Key.portrait)], case let .byteString(byteArray) = cborValue {
+            portrait = Data(byteArray)
         }
-
-        let nationality = getOptionalString(ISO180135.Key.nationality)
 
         var ageOver18: Bool?
-        if let c = itemsMap[.utf8String(ISO180135.Key.ageOver18)], case let .boolean(b) = c {
-            ageOver18 = b
+        if let cborValue = itemsMap[.utf8String(ISO180135.Key.ageOver18)], case let .boolean(boolValue) = cborValue {
+            ageOver18 = boolValue
         }
-
-        let residentAddress = getOptionalString(ISO180135.Key.residentAddress)
 
         return MDLDocument(
             familyName: familyName,
@@ -216,9 +204,36 @@ public enum MDLDocumentCBORCoding {
             documentNumber: documentNumber,
             drivingPrivileges: drivingPrivileges,
             portrait: portrait,
-            nationality: nationality,
+            nationality: optionalString(ISO180135.Key.nationality),
             ageOver18: ageOver18,
-            residentAddress: residentAddress
+            residentAddress: optionalString(ISO180135.Key.residentAddress)
         )
+    }
+
+    private static func parseDrivingPrivileges(from itemsMap: [CBOR: CBOR], dateFormatter: DateFormatter) throws -> [DrivingPrivilege] {
+        guard let privCbor = itemsMap[.utf8String(ISO180135.Key.drivingPrivileges)], case let .array(privArray) = privCbor else {
+            throw MDLCBORDecodeError.invalidFormat
+        }
+        var result: [DrivingPrivilege] = []
+        for item in privArray {
+            guard case let .map(entry) = item else { throw MDLCBORDecodeError.invalidFormat }
+            guard case let .utf8String(vehicleCategoryCode) = entry[.utf8String(ISO180135.Key.vehicleCategoryCode)] else {
+                throw MDLCBORDecodeError.invalidFormat
+            }
+            let issueDate = parseOptionalDate(from: entry, key: ISO180135.Key.privilegeIssueDate, dateFormatter: dateFormatter)
+            let expiryDate = parseOptionalDate(from: entry, key: ISO180135.Key.privilegeExpiryDate, dateFormatter: dateFormatter)
+            result.append(DrivingPrivilege(vehicleCategoryCode: vehicleCategoryCode, issueDate: issueDate, expiryDate: expiryDate))
+        }
+        guard !result.isEmpty else {
+            throw MDLCBORDecodeError.invalidFormat
+        }
+        return result
+    }
+
+    private static func parseOptionalDate(from entry: [CBOR: CBOR], key: String, dateFormatter: DateFormatter) -> Date? {
+        guard let cborValue = entry[.utf8String(key)], case let .utf8String(string) = cborValue else {
+            return nil
+        }
+        return dateFormatter.date(from: string)
     }
 }

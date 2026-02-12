@@ -20,6 +20,10 @@ jobs:
       - name: Install Tuist
         run: brew install tuist
 
+      - name: Install dependencies
+        working-directory: MDLWallet
+        run: tuist install
+
       - name: Run tests
         working-directory: MDLWallet
         run: tuist test

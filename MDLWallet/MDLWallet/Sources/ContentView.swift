@@ -10,6 +10,7 @@ public struct ContentView: View {
     @State private var currentCredential: MDLDocument? = nil
     @State private var isLoading = true
     @State private var isErrorLoadingCredential = false
+    @State private var saveErrorMessage: String? = nil
 
     
     public init(credentialRepository: CredentialRepository) {
@@ -37,7 +38,7 @@ public struct ContentView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     
-                    Text("Driving Licence No: " + (currentCredential?.documentNumber ?? "Unknown"))
+                    Text("Driving Licence No: ****" + (currentCredential.map { String($0.documentNumber.suffix(4)) } ?? "****"))
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -104,6 +105,17 @@ public struct ContentView: View {
             }
         }
         .padding()
+        .overlay(alignment: .bottom) {
+            if let message = saveErrorMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(8)
+                    .background(.red.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding(.bottom, 8)
+            }
+        }
         // .task runs when the view appears - perfect for loading data
         // Similar to useEffect in React or onMounted in Vue
         .task {
@@ -138,8 +150,7 @@ public struct ContentView: View {
     
     /// Handle the "Add MDL" button tap
     private func addCredential() {
-        // For now, just create a test credential
-        // In a real app, you'd navigate to a form or scan QR code
+        saveErrorMessage = nil
         Task {
             let testDocument = MDLDocument(
                 familyName: "Smith",
@@ -154,17 +165,27 @@ public struct ContentView: View {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
-            try? await credentialRepository.save(testDocument)
-            await checkForCredential() // Refresh the UI
+            do {
+                try await credentialRepository.save(testDocument)
+                await checkForCredential()
+            } catch {
+                saveErrorMessage = error.localizedDescription
+                await checkForCredential()
+            }
         }
     }
-    
+
     /// Handle the "Remove MDL" button tap
     private func removeCredential() {
+        saveErrorMessage = nil
         Task {
-            try? await credentialRepository.delete()
-            await checkForCredential() // Refresh the UI
+            do {
+                try await credentialRepository.delete()
+                await checkForCredential()
+            } catch {
+                saveErrorMessage = error.localizedDescription
+                await checkForCredential()
+            }
         }
     }
 }

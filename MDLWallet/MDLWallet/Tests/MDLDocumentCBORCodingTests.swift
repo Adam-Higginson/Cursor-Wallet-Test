@@ -87,5 +87,79 @@ struct MDLDocumentCBORCodingTests {
                 _ = try MDLDocumentCBORCoding.decode(data)
             }
         }
+
+        @Test("decode throws when payload exceeds size limit")
+        func dataTooLarge() {
+            // Payload larger than 1 MiB limit
+            let tooBig = Data(repeating: 0x00, count: 1024 * 1024 + 1)
+            #expect(throws: MDLCBORDecodeError.self) {
+                _ = try MDLDocumentCBORCoding.decode(tooBig)
+            }
+        }
+
+        @Test("decode throws on invalid date format in required field")
+        func invalidDateFormat() {
+            // Valid structure but birth_date is not YYYY-MM-DD
+            let topLevel = CBOR.map([
+                .utf8String("org.iso.18013.5.1"): .map([
+                    .utf8String("family_name"): .utf8String("Smith"),
+                    .utf8String("given_name"): .utf8String("Alice"),
+                    .utf8String("birth_date"): .utf8String("not-a-date"),
+                    .utf8String("issue_date"): .utf8String("2024-01-01"),
+                    .utf8String("expiry_date"): .utf8String("2029-01-01"),
+                    .utf8String("issuing_country"): .utf8String("UK"),
+                    .utf8String("issuing_authority"): .utf8String("DVLA"),
+                    .utf8String("document_number"): .utf8String("DL123456789"),
+                    .utf8String("driving_privileges"): .array([.map([.utf8String("vehicle_category_code"): .utf8String("B")])])
+                ])
+            ])
+            let data = Data(topLevel.encode())
+            #expect(throws: MDLCBORDecodeError.self) {
+                _ = try MDLDocumentCBORCoding.decode(data)
+            }
+        }
+
+        @Test("decode throws when driving_privileges is not an array")
+        func invalidDrivingPrivilegesType() {
+            let topLevel = CBOR.map([
+                .utf8String("org.iso.18013.5.1"): .map([
+                    .utf8String("family_name"): .utf8String("Smith"),
+                    .utf8String("given_name"): .utf8String("Alice"),
+                    .utf8String("birth_date"): .utf8String("1990-06-15"),
+                    .utf8String("issue_date"): .utf8String("2024-01-01"),
+                    .utf8String("expiry_date"): .utf8String("2029-01-01"),
+                    .utf8String("issuing_country"): .utf8String("UK"),
+                    .utf8String("issuing_authority"): .utf8String("DVLA"),
+                    .utf8String("document_number"): .utf8String("DL123456789"),
+                    .utf8String("driving_privileges"): .utf8String("not-an-array")
+                ])
+            ])
+            let data = Data(topLevel.encode())
+            #expect(throws: MDLCBORDecodeError.self) {
+                _ = try MDLDocumentCBORCoding.decode(data)
+            }
+        }
+
+        @Test("decode throws when required string field is wrong type")
+        func invalidRequiredFieldType() {
+            // document_number as integer instead of string
+            let topLevel = CBOR.map([
+                .utf8String("org.iso.18013.5.1"): .map([
+                    .utf8String("family_name"): .utf8String("Smith"),
+                    .utf8String("given_name"): .utf8String("Alice"),
+                    .utf8String("birth_date"): .utf8String("1990-06-15"),
+                    .utf8String("issue_date"): .utf8String("2024-01-01"),
+                    .utf8String("expiry_date"): .utf8String("2029-01-01"),
+                    .utf8String("issuing_country"): .utf8String("UK"),
+                    .utf8String("issuing_authority"): .utf8String("DVLA"),
+                    .utf8String("document_number"): .unsignedInt(123),
+                    .utf8String("driving_privileges"): .array([.map([.utf8String("vehicle_category_code"): .utf8String("B")])])
+                ])
+            ])
+            let data = Data(topLevel.encode())
+            #expect(throws: MDLCBORDecodeError.self) {
+                _ = try MDLDocumentCBORCoding.decode(data)
+            }
+        }
     }
 }

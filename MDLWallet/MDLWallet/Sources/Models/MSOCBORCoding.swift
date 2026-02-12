@@ -30,12 +30,26 @@ private enum MSOPayloadKey {
     static let validFrom = "validFrom"
     static let validUntil = "validUntil"
     static let deviceKey = "deviceKey"
+    /// Accepted docType values for this mDL wallet (ISO 18013-5).
+    static let allowedDocTypes: Set<String> = ["org.iso.18013.5.1.mDL"]
 }
 
 // MARK: - Limits
 
 private enum MSOLimits {
     static let maxDataSize = 1024 * 1024
+    /// Maximum encoded size for device key (COSE_Key as map or byte string) to prevent DoS.
+    static let maxDeviceKeySize = 16 * 1024
+    /// Allowed digest lengths: SHA-256 (32), SHA-384 (48), SHA-512 (64).
+    static let allowedDigestLengths: Set<Int> = [32, 48, 64]
+    /// Maximum number of namespaces in valueDigests to prevent DoS.
+    static let maxValueDigestNamespaces = 128
+    /// Maximum digest entries per namespace to prevent DoS.
+    static let maxDigestsPerNamespace = 256
+    /// Validity dates must be after epoch (malformed / suspicious otherwise).
+    static let validityDateMin = Date(timeIntervalSince1970: 0)
+    /// Validity dates must be before this (e.g. year 2100) to avoid extreme far-future issues.
+    static let validityDateMax = Date(timeIntervalSince1970: 4102444800)
 }
 
 // MARK: - Date-time format (ISO 8601)
@@ -44,7 +58,7 @@ private func makeDateTimeFormatter() -> DateFormatter {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
     formatter.timeZone = TimeZone(identifier: "UTC")
-    formatter.locale = Locale(identifier: "en_GB_POSIX")
+    formatter.locale = Locale(identifier: Locale.identifierPOSIX)
     return formatter
 }
 
@@ -133,6 +147,9 @@ public enum MSOCBORCoding {
             return string
         }
         let docType = try requiredString(MSOPayloadKey.docType)
+        guard MSOPayloadKey.allowedDocTypes.contains(docType) else {
+            throw MSOCBORDecodeError.invalidFormat
+        }
         let validityInfo = try parseValidityInfo(from: map, dateTimeFormatter: dateTimeFormatter)
         let deviceKeyInfo = try parseDeviceKeyInfo(from: map)
         let valueDigests = try parseValueDigests(from: map)
@@ -157,7 +174,9 @@ public enum MSOCBORCoding {
         let validFromStr = try dateString(MSOPayloadKey.validFrom)
         let validUntilStr = try dateString(MSOPayloadKey.validUntil)
         guard let validFrom = dateTimeFormatter.date(from: validFromStr),
-              let validUntil = dateTimeFormatter.date(from: validUntilStr) else {
+              let validUntil = dateTimeFormatter.date(from: validUntilStr),
+              validFrom > MSOLimits.validityDateMin,
+              validUntil < MSOLimits.validityDateMax else {
             throw MSOCBORDecodeError.invalidFormat
         }
         return MSOValidityInfo(validFrom: validFrom, validUntil: validUntil)
@@ -171,8 +190,11 @@ public enum MSOCBORCoding {
         let keyData: Data
         switch keyCbor {
         case .map:
-            keyData = Data(keyCbor.encode())
+            let encoded = keyCbor.encode()
+            guard encoded.count <= MSOLimits.maxDeviceKeySize else { throw MSOCBORDecodeError.invalidFormat }
+            keyData = Data(encoded)
         case .byteString(let bytes):
+            guard bytes.count <= MSOLimits.maxDeviceKeySize else { throw MSOCBORDecodeError.invalidFormat }
             keyData = Data(bytes)
         default:
             throw MSOCBORDecodeError.invalidFormat
@@ -184,9 +206,15 @@ public enum MSOCBORCoding {
         guard let digestsCbor = map[.utf8String(MSOPayloadKey.valueDigests)], case .map(let digestsMap) = digestsCbor else {
             throw MSOCBORDecodeError.invalidFormat
         }
+        guard digestsMap.count <= MSOLimits.maxValueDigestNamespaces else {
+            throw MSOCBORDecodeError.invalidFormat
+        }
         var result: [String: [String: Data]] = [:]
         for (nsKey, nsValue) in digestsMap {
             guard case .utf8String(let namespace) = nsKey, case .map(let labelToDigest) = nsValue else {
+                throw MSOCBORDecodeError.invalidFormat
+            }
+            guard labelToDigest.count <= MSOLimits.maxDigestsPerNamespace else {
                 throw MSOCBORDecodeError.invalidFormat
             }
             var inner: [String: Data] = [:]
@@ -195,10 +223,15 @@ public enum MSOCBORCoding {
                 switch labelKey {
                 case .utf8String(let string): labelStr = string
                 case .unsignedInt(let unsigned): labelStr = String(unsigned)
-                case .negativeInt(let neg): labelStr = String(-Int(neg) - 1)
+                case .negativeInt(let neg):
+                    guard neg <= UInt64(Int.max) else { throw MSOCBORDecodeError.invalidFormat }
+                    labelStr = String(-Int(neg) - 1)
                 default: throw MSOCBORDecodeError.invalidFormat
                 }
-                guard case .byteString(let digestBytes) = digestCbor else { throw MSOCBORDecodeError.invalidFormat }
+                guard case .byteString(let digestBytes) = digestCbor,
+                      MSOLimits.allowedDigestLengths.contains(digestBytes.count) else {
+                    throw MSOCBORDecodeError.invalidFormat
+                }
                 inner[labelStr] = Data(digestBytes)
             }
             result[namespace] = inner

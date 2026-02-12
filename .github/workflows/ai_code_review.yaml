@@ -23,8 +23,6 @@ jobs:
         with:
           files: |
             **/*.swift
-            **/*.md
-            **/Project.swift
       
       - name: Setup Python
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -55,5 +53,6 @@ jobs:
           REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           python .github/scripts/ai_review.py

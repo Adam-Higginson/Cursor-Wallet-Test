@@ -109,17 +109,17 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ],
                 // Optional fields
                 portrait: Data([0xFF, 0xD8, 0xFF]),  // JPEG header bytes
-                nationality: "US",
+                nationality: "GB",
                 ageOver18: true,
-                residentAddress: "123 Main St, Sacramento, CA"
+                residentAddress: "123 High Street, London"
             )
 
             // THEN
@@ -130,9 +130,9 @@ struct MDLDocumentTests {
             //   write implementation code.
             
             #expect(doc.portrait != nil)
-            #expect(doc.nationality == "US")
+            #expect(doc.nationality == "GB")
             #expect(doc.ageOver18 == true)
-            #expect(doc.residentAddress == "123 Main St, Sacramento, CA")
+            #expect(doc.residentAddress == "123 High Street, London")
         }
     }
     
@@ -170,8 +170,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -198,8 +198,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -219,8 +219,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "",  // Invalid!
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -240,8 +240,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2023, month: 1, day: 1),  // Before issue!
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -262,8 +262,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: []  // Invalid!
             )
@@ -281,8 +281,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2029, month: 1, day: 1),
-                issuingCountry: "United States",  // Should be "US"
-                issuingAuthority: "State of California",
+                issuingCountry: "United Kingdom",  // Should be "GB"
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -361,8 +361,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2020, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2021, month: 1, day: 1),  // In the past
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")
@@ -380,8 +380,8 @@ struct MDLDocumentTests {
                 birthDate: TestHelpers.makeDate(year: 1990, month: 6, day: 15),
                 issueDate: TestHelpers.makeDate(year: 2024, month: 1, day: 1),
                 expiryDate: TestHelpers.makeDate(year: 2099, month: 1, day: 1),  // Far future
-                issuingCountry: "US",
-                issuingAuthority: "State of California",
+                issuingCountry: "UK",
+                issuingAuthority: "DVLA",
                 documentNumber: "DL123456789",
                 drivingPrivileges: [
                     DrivingPrivilege(vehicleCategoryCode: "B")

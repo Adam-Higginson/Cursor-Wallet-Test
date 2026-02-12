@@ -207,8 +207,8 @@ private struct PreviewHelperWithCredential: View {
                         birthDate: Date(timeIntervalSince1970: 645840000),
                         issueDate: Date(),
                         expiryDate: Date(timeIntervalSinceNow: 60 * 60 * 24 * 365 * 5),
-                        issuingCountry: "US",
-                        issuingAuthority: "State of California",
+                        issuingCountry: "UK",
+                        issuingAuthority: "DVLA",
                         documentNumber: "DL123456789",
                         drivingPrivileges: [DrivingPrivilege(vehicleCategoryCode: "B")]
                     ))

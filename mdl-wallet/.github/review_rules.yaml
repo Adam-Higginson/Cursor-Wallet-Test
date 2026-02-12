@@ -1,0 +1,27 @@
+security_patterns:
+  forbidden:
+    - pattern: 'SecKey.*print'
+      message: 'Never log cryptographic keys'
+      severity: critical
+    
+    - pattern: 'UserDefaults.*privateKey'
+      message: 'Private keys must use Keychain, not UserDefaults'
+      severity: critical
+    
+    - pattern: 'let.*Key.*=.*"[A-Za-z0-9]+"'
+      message: 'Possible hardcoded key detected'
+      severity: critical
+  
+  required:
+    - pattern: 'CryptoKit'
+      message: 'Use CryptoKit for all crypto operations'
+      files: ['**/CryptoService.swift']
+
+iso_compliance:
+  - pattern: 'MDLDocument.*documentNumber'
+    message: 'Ensure ISO 18013-5 naming conventions'
+    
+testing:
+  require_tests_for:
+    - '**/Models/*.swift'
+    - '**/Services/*.swift'

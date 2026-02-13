@@ -1,8 +1,12 @@
 name: AI Code Review
 
+# Disabled: running AI review locally for now.
+# To re-enable, uncomment the pull_request trigger below.
+#on:
+#  pull_request:
+#    types: [opened, synchronize, reopened]
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
   ai-review:

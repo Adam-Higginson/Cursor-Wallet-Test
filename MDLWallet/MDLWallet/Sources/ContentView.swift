@@ -106,7 +106,9 @@ public struct ContentView: View {
                 .foregroundStyle(.red)
                 .multilineTextAlignment(.center)
 
-            Button(action: { showScanner = true }) {
+            Button {
+                showScanner = true
+            } label: {
                 Label("Try Adding Credential Again", systemImage: "qrcode.viewfinder")
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -133,7 +135,9 @@ public struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button(action: { showScanner = true }) {
+            Button {
+                showScanner = true
+            } label: {
                 Label("Scan QR Code", systemImage: "qrcode.viewfinder")
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -168,10 +172,10 @@ public struct ContentView: View {
                     .background(.red.opacity(0.1))
                     .cornerRadius(8)
 
-                Button(action: {
+                Button {
                     issuanceError = nil
                     isIssuingCredential = false
-                }) {
+                } label: {
                     Text("Dismiss")
                         .font(.headline)
                         .foregroundStyle(.white)
@@ -249,7 +253,7 @@ public struct ContentView: View {
                 // For this phase, save a placeholder document indicating success.
                 print("Received credential: \(credentialData.count) bytes")
 
-                // TODO: Decode the mdoc credential into an MDLDocument.
+                // Future: decode the mdoc credential into an MDLDocument.
                 // For now, create a minimal document to indicate issuance succeeded.
                 let document = MDLDocument(
                     familyName: "Issued",

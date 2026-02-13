@@ -17,7 +17,7 @@ struct ModelDecodingTests {
 
         @Test("decodes full issuer metadata with all fields")
         func fullMetadata() throws {
-            let json = """
+            let json = Data("""
             {
                 "credential_issuer": "https://issuer.example.com",
                 "credential_endpoint": "https://issuer.example.com/credential",
@@ -29,7 +29,7 @@ struct ModelDecodingTests {
                     }
                 }
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let metadata = try JSONDecoder().decode(IssuerMetadata.self, from: json)
 
@@ -42,12 +42,12 @@ struct ModelDecodingTests {
 
         @Test("decodes minimal issuer metadata (only required fields)")
         func minimalMetadata() throws {
-            let json = """
+            let json = Data("""
             {
                 "credential_issuer": "https://issuer.example.com",
                 "credential_endpoint": "https://issuer.example.com/credential"
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let metadata = try JSONDecoder().decode(IssuerMetadata.self, from: json)
 
@@ -58,14 +58,14 @@ struct ModelDecodingTests {
 
         @Test("ignores unknown fields in metadata")
         func unknownFields() throws {
-            let json = """
+            let json = Data("""
             {
                 "credential_issuer": "https://issuer.example.com",
                 "credential_endpoint": "https://issuer.example.com/credential",
                 "unknown_field": "should be ignored",
                 "another_unknown": 42
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let metadata = try JSONDecoder().decode(IssuerMetadata.self, from: json)
             #expect(metadata.credentialIssuer == "https://issuer.example.com")
@@ -81,7 +81,7 @@ struct ModelDecodingTests {
 
         @Test("decodes full token response")
         func fullResponse() throws {
-            let json = """
+            let json = Data("""
             {
                 "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
                 "token_type": "Bearer",
@@ -89,7 +89,7 @@ struct ModelDecodingTests {
                 "c_nonce": "tZignsnFbp",
                 "c_nonce_expires_in": 86400
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let response = try JSONDecoder().decode(TokenResponse.self, from: json)
 
@@ -102,9 +102,9 @@ struct ModelDecodingTests {
 
         @Test("decodes minimal token response (access_token only)")
         func minimalResponse() throws {
-            let json = """
+            let json = Data("""
             {"access_token": "abc123"}
-            """.data(using: .utf8)!
+            """.utf8)
 
             let response = try JSONDecoder().decode(TokenResponse.self, from: json)
 
@@ -124,13 +124,13 @@ struct ModelDecodingTests {
 
         @Test("decodes immediate credential response")
         func immediateResponse() throws {
-            let json = """
+            let json = Data("""
             {
                 "credential": "base64url_encoded_credential_data",
                 "c_nonce": "fresh_nonce",
                 "c_nonce_expires_in": 86400
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let response = try JSONDecoder().decode(CredentialResponse.self, from: json)
 
@@ -141,9 +141,9 @@ struct ModelDecodingTests {
 
         @Test("decodes deferred credential response")
         func deferredResponse() throws {
-            let json = """
+            let json = Data("""
             {"transaction_id": "txn_abc123"}
-            """.data(using: .utf8)!
+            """.utf8)
 
             let response = try JSONDecoder().decode(CredentialResponse.self, from: json)
 
@@ -161,13 +161,13 @@ struct ModelDecodingTests {
 
         @Test("decodes authorization server metadata")
         func decodeASMetadata() throws {
-            let json = """
+            let json = Data("""
             {
                 "issuer": "https://auth.example.com",
                 "token_endpoint": "https://auth.example.com/oauth/token",
                 "authorization_endpoint": "https://auth.example.com/authorize"
             }
-            """.data(using: .utf8)!
+            """.utf8)
 
             let metadata = try JSONDecoder().decode(AuthorizationServerMetadata.self, from: json)
             #expect(metadata.tokenEndpoint == "https://auth.example.com/oauth/token")

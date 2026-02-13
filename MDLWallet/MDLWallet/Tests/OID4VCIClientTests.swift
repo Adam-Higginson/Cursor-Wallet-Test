@@ -7,20 +7,31 @@ import Foundation
 
 // MARK: - Mock HTTP Client
 
+/// A recorded POST request for test assertions.
+struct RecordedPost: Sendable {
+    let url: URL
+    let headers: [String: String]
+    let body: Data?
+}
+
 /// A mock HTTPClient that returns canned responses based on URL patterns.
 actor MockHTTPClient: HTTPClient {
     private var getResponses: [String: (Data, HTTPURLResponse)] = [:]
     private var postResponses: [String: (Data, HTTPURLResponse)] = [:]
     private(set) var getRequests: [URL] = []
-    private(set) var postRequests: [(url: URL, headers: [String: String], body: Data?)] = []
+    private(set) var postRequests: [RecordedPost] = []
 
     func stubGet(urlContaining substring: String, data: Data, statusCode: Int = 200) {
-        let response = HTTPURLResponse(url: URL(string: "https://stub")!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(
+            url: URL(string: "https://stub")!, statusCode: statusCode, httpVersion: nil, headerFields: nil
+        )!
         getResponses[substring] = (data, response)
     }
 
     func stubPost(urlContaining substring: String, data: Data, statusCode: Int = 200) {
-        let response = HTTPURLResponse(url: URL(string: "https://stub")!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(
+            url: URL(string: "https://stub")!, statusCode: statusCode, httpVersion: nil, headerFields: nil
+        )!
         postResponses[substring] = (data, response)
     }
 
@@ -36,21 +47,21 @@ actor MockHTTPClient: HTTPClient {
 
     private func recordGet(url: URL) { getRequests.append(url) }
     private func recordPost(url: URL, headers: [String: String], body: Data?) {
-        postRequests.append((url: url, headers: headers, body: body))
+        postRequests.append(RecordedPost(url: url, headers: headers, body: body))
     }
 
     private func findGetResponse(for url: URL) throws -> (Data, HTTPURLResponse) {
         let urlString = url.absoluteString
-        for (substring, response) in getResponses {
-            if urlString.contains(substring) { return response }
+        if let match = getResponses.first(where: { urlString.contains($0.key) }) {
+            return match.value
         }
         throw HTTPClientError.httpError(statusCode: 404, body: Data())
     }
 
     private func findPostResponse(for url: URL) throws -> (Data, HTTPURLResponse) {
         let urlString = url.absoluteString
-        for (substring, response) in postResponses {
-            if urlString.contains(substring) { return response }
+        if let match = postResponses.first(where: { urlString.contains($0.key) }) {
+            return match.value
         }
         throw HTTPClientError.httpError(statusCode: 404, body: Data())
     }
@@ -61,7 +72,7 @@ actor MockHTTPClient: HTTPClient {
 private enum TestData {
     static let issuerURL = "https://issuer.example.com"
 
-    static let issuerMetadataJSON = """
+    static let issuerMetadataJSON = Data("""
     {
         "credential_issuer": "https://issuer.example.com",
         "credential_endpoint": "https://issuer.example.com/credential",
@@ -73,21 +84,21 @@ private enum TestData {
             }
         }
     }
-    """.data(using: .utf8)!
+    """.utf8)
 
-    static let asMetadataJSON = """
+    static let asMetadataJSON = Data("""
     {"token_endpoint": "https://auth.example.com/token"}
-    """.data(using: .utf8)!
+    """.utf8)
 
-    static let tokenResponseJSON = """
+    static let tokenResponseJSON = Data("""
     {"access_token": "eyJhbGciOiJSUzI1NiJ9.test_token", "token_type": "Bearer", "expires_in": 3600}
-    """.data(using: .utf8)!
+    """.utf8)
 
     // A fake credential: base64url("hello_credential")
     static let credentialBase64url = "aGVsbG9fY3JlZGVudGlhbA"
-    static let credentialResponseJSON = """
+    static let credentialResponseJSON = Data("""
     {"credential": "\(credentialBase64url)"}
-    """.data(using: .utf8)!
+    """.utf8)
 
     static func makeOffer() -> CredentialOffer {
         CredentialOffer(
@@ -183,13 +194,13 @@ struct OID4VCIClientTests {
                 credentialConfigurationIds: ["org.iso.18013.5.1.mDL"]
             )
 
-            #expect(data == "hello_credential".data(using: .utf8))
+            #expect(data == Data("hello_credential".utf8))
         }
 
         @Test("throws noCredentialInResponse when credential field is null")
         func noCredential() async {
             let mock = MockHTTPClient()
-            await mock.stubPost(urlContaining: "/credential", data: "{\"credential\": null}".data(using: .utf8)!)
+            await mock.stubPost(urlContaining: "/credential", data: Data("{\"credential\": null}".utf8))
 
             let client = OID4VCIClient(httpClient: mock)
             do {
@@ -223,16 +234,16 @@ struct OID4VCIClientTests {
             let client = OID4VCIClient(httpClient: mock)
             let credentialData = try await client.issueCredential(offer: TestData.makeOffer())
 
-            #expect(credentialData == "hello_credential".data(using: .utf8))
+            #expect(credentialData == Data("hello_credential".utf8))
         }
 
         @Test("falls back to {issuer}/token when AS metadata is not available")
         func tokenEndpointFallback() async throws {
             let mock = MockHTTPClient()
             // Return metadata without authorization_servers
-            let metadataNoAS = """
+            let metadataNoAS = Data("""
             {"credential_issuer":"https://issuer.example.com","credential_endpoint":"https://issuer.example.com/credential"}
-            """.data(using: .utf8)!
+            """.utf8)
             await mock.stubGet(urlContaining: ".well-known/openid-credential-issuer", data: metadataNoAS)
             await mock.stubPost(urlContaining: "/token", data: TestData.tokenResponseJSON)
             await mock.stubPost(urlContaining: "/credential", data: TestData.credentialResponseJSON)
@@ -240,7 +251,7 @@ struct OID4VCIClientTests {
             let client = OID4VCIClient(httpClient: mock)
             let credentialData = try await client.issueCredential(offer: TestData.makeOffer())
 
-            #expect(credentialData == "hello_credential".data(using: .utf8))
+            #expect(credentialData == Data("hello_credential".utf8))
         }
     }
 }

@@ -12,21 +12,21 @@ let project = Project(
                 with: [
                     "UILaunchScreen": [
                         "UIColorName": "",
-                        "UIImageName": "",
+                        "UIImageName": ""
                     ],
                     "NSCameraUsageDescription": "We need camera access to scan QR codes for credential issuance.",
                     "CFBundleURLTypes": [
                         [
                             "CFBundleURLSchemes": ["openid-credential-offer"],
                             "CFBundleTypeRole": "Editor",
-                            "CFBundleURLName": "OID4VCI Credential Offer",
-                        ],
-                    ],
+                            "CFBundleURLName": "OID4VCI Credential Offer"
+                        ]
+                    ]
                 ]
             ),
             buildableFolders: [
                 "MDLWallet/Sources",
-                "MDLWallet/Resources",
+                "MDLWallet/Resources"
             ],
             dependencies: [.external(name: "SwiftCBOR")]
         ),
@@ -40,6 +40,6 @@ let project = Project(
                 "MDLWallet/Tests"
             ],
             dependencies: [.target(name: "MDLWallet"), .external(name: "SwiftCBOR")]
-        ),
+        )
     ]
 )

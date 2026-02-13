@@ -1,20 +1,22 @@
+import Foundation
+
 public actor InMemoryCredentialRepository: CredentialRepository {
-    
-    private var savedCredential: MDLDocument?
-    
-    public func save(_ document: MDLDocument) async throws {
-        savedCredential = document
+
+    private var savedCredential: StoredCredential?
+
+    public func save(_ credential: StoredCredential) async throws {
+        savedCredential = credential
     }
-    
-    public func load() async throws -> MDLDocument? {
-        return savedCredential
+
+    public func load() async throws -> StoredCredential? {
+        savedCredential
     }
-    
+
     public func delete() async throws {
         savedCredential = nil
     }
-    
+
     public func exists() async -> Bool {
-        return savedCredential != nil
+        savedCredential != nil
     }
 }

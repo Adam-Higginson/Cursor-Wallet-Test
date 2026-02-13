@@ -278,7 +278,7 @@ extension MDLDocument {
         guard expiryDate > issueDate else {
             throw MDLDocumentError.expiryBeforeIssue
         }
-        
+
         guard birthDate < Date.now else {
             throw MDLDocumentError.birthdateInFuture
         }
@@ -362,8 +362,7 @@ public enum MDLDocumentError: Error, Sendable {
 
     /// The expiry date is before the issue date.
     case expiryBeforeIssue
-    
+
     /// The birth date is in the future.
     case birthdateInFuture
 }
-

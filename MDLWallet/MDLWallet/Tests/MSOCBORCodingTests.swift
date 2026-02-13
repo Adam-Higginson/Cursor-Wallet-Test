@@ -72,8 +72,8 @@ struct MSOCBORCodingTests {
             .utf8String("validFrom"): .utf8String(validFrom),
             .utf8String("validUntil"): .utf8String(validUntil)
         ]
-        if let eu = expectedUpdate {
-            validityMap[.utf8String("expectedUpdate")] = .utf8String(eu)
+        if let expectedUpdateDate = expectedUpdate {
+            validityMap[.utf8String("expectedUpdate")] = .utf8String(expectedUpdateDate)
         }
         return [
             .utf8String("version"): .utf8String(version),

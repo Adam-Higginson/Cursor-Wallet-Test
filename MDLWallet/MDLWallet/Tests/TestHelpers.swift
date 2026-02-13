@@ -59,5 +59,3 @@ enum TestHelpers {
         )
     }
 }
-
-

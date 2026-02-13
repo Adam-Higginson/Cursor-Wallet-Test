@@ -25,7 +25,7 @@ struct MDLDocumentTests {
     // ═══════════════════════════════════════════════════════════════════
     // ISO 18013-5 §7.2.1 defines mandatory data elements in the
     // "org.iso.18013.5.1" namespace. These must always be present.
-    
+
     @Suite("Initialisation")
     struct Initialisation {
 
@@ -33,7 +33,7 @@ struct MDLDocumentTests {
         // ─────────────────────────────────────────────────────────────
         // The string in @Test("...") is a human-readable label shown
         // in test results. Like JUnit's @DisplayName or Jest's test description.
-        
+
         @Test("creates document with all required fields")
         func initWithRequiredFields() {
             // GIVEN: Valid data for all mandatory ISO 18013-5 fields
@@ -42,7 +42,7 @@ struct MDLDocumentTests {
             //   let = immutable (like Java's final or TS's const)
             //   var = mutable (like Java's non-final or TS's let)
             // Always prefer "let" unless you need to mutate.
-            
+
             let doc = MDLDocument(
                 familyName: "Smith",
                 givenName: "Alice",
@@ -58,7 +58,7 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             // THEN: All properties should be set correctly
             // ─────────────────────────────────────────────────────────
             // Swift Testing: #expect(expression)
@@ -68,7 +68,7 @@ struct MDLDocumentTests {
             //   Jest equivalent:     expect(doc.familyName).toBe("Smith")
             //   JUnit equivalent:    assertEquals("Smith", doc.getFamilyName())
             //   Swift Testing:       #expect(doc.familyName == "Smith")
-            
+
             #expect(doc.familyName == "Smith")
             #expect(doc.givenName == "Alice")
             #expect(doc.documentNumber == "DL123456789")
@@ -82,7 +82,7 @@ struct MDLDocumentTests {
         func initOptionalFieldsNil() {
             // GIVEN: A document with only required fields
             let doc = TestHelpers.makeMinimalDocument()
-            
+
             // THEN: Optional fields should be nil
             // ─────────────────────────────────────────────────────────
             // Swift Concept: Optionals
@@ -93,7 +93,7 @@ struct MDLDocumentTests {
             // Swift forces you to handle the "might be absent" case at
             // compile time. You can't accidentally call .count on a nil
             // String? without the compiler stopping you.
-            
+
             #expect(doc.portrait == nil)
             #expect(doc.nationality == nil)
             #expect(doc.ageOver18 == nil)
@@ -128,14 +128,14 @@ struct MDLDocumentTests {
             //   #expect(doc.portrait != nil) — verifies it's not nil.
             //   We'll look at unwrapping (if let, guard let) when we
             //   write implementation code.
-            
+
             #expect(doc.portrait != nil)
             #expect(doc.nationality == "GB")
             #expect(doc.ageOver18 == true)
             #expect(doc.residentAddress == "123 High Street, London")
         }
     }
-    
+
     // ═══════════════════════════════════════════════════════════════════
     // MARK: - Validation
     // ═══════════════════════════════════════════════════════════════════
@@ -144,7 +144,7 @@ struct MDLDocumentTests {
 
     @Suite("Validation")
     struct Validation {
-        
+
         @Test("valid document passes validation")
         func validDocumentPasses() throws {
             // Swift Concept: "throws" in test signature
@@ -155,13 +155,13 @@ struct MDLDocumentTests {
             //
             // JUnit equivalent:  @Test void foo() throws Exception { ... }
             // Jest equivalent:    expect(() => validate()).not.toThrow()
-            
+
             let doc = TestHelpers.makeMinimalDocument()
-            
+
             // This should NOT throw. If it does, the test fails automatically.
             try doc.validate()
         }
-        
+
         @Test("rejects empty family name")
         func rejectsEmptyFamilyName() {
             let doc = MDLDocument(
@@ -177,19 +177,19 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             // Swift Concept: #expect(throws:) { ... }
             // ─────────────────────────────────────────────────────────
             // Verifies that the closure throws a specific error type.
             //   Jest:  expect(() => doc.validate()).toThrow(ValidationError)
             //   JUnit: assertThrows(ValidationError.class, () -> doc.validate())
             //   Swift: #expect(throws: MDLDocumentError.self) { try doc.validate() }
-            
+
             #expect(throws: MDLDocumentError.self) {
                 try doc.validate()
             }
         }
-        
+
         @Test("rejects empty given name")
         func rejectsEmptyGivenName() {
             let doc = MDLDocument(
@@ -205,7 +205,7 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             #expect(throws: MDLDocumentError.self) {
                 try doc.validate()
             }
@@ -226,7 +226,7 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             #expect(throws: MDLDocumentError.self) {
                 try doc.validate()
             }
@@ -252,7 +252,7 @@ struct MDLDocumentTests {
                 try doc.validate()
             }
         }
-        
+
         @Test("rejects empty driving privileges")
         func rejectsEmptyDrivingPrivileges() {
             // ISO 18013-5: driving_privileges is mandatory and must have at least one entry
@@ -272,7 +272,7 @@ struct MDLDocumentTests {
                 try doc.validate()
             }
         }
-        
+
         @Test("rejects issuing country that isn't 2-letter code")
         func rejectsInvalidCountryCode() {
             let doc = MDLDocument(
@@ -293,7 +293,7 @@ struct MDLDocumentTests {
                 try doc.validate()
             }
         }
-        
+
         @Test("allows DrivingPrivilege with optional dates")
         func allowsOptionDatesInDrivingPrivilege() throws {
             let doc = MDLDocument(
@@ -313,11 +313,11 @@ struct MDLDocumentTests {
                     )
                 ]
             )
-            
+
             // This should not throw
             try doc.validate()
         }
-        
+
         @Test("rejects birth date in the future")
         func rejectsBirthdayInTheFuture() {
             let doc = MDLDocument(
@@ -342,10 +342,8 @@ struct MDLDocumentTests {
                 try doc.validate()
             }
         }
-        
-        
     }
-    
+
     // ═══════════════════════════════════════════════════════════════════
     // MARK: - Computed Properties
     // ═══════════════════════════════════════════════════════════════════
@@ -368,7 +366,7 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             #expect(doc.isExpired == true)
         }
 
@@ -387,10 +385,10 @@ struct MDLDocumentTests {
                     DrivingPrivilege(vehicleCategoryCode: "B")
                 ]
             )
-            
+
             #expect(doc.isExpired == false)
         }
-        
+
         @Test("fullName combines given and family name")
         func fullNameCombination() {
             let doc = TestHelpers.makeMinimalDocument()

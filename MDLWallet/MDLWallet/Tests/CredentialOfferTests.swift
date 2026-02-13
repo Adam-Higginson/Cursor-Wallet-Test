@@ -18,9 +18,11 @@ struct CredentialOfferTests {
         return "openid-credential-offer://?credential_offer=\(encoded)"
     }
 
+    // swiftlint:disable line_length
     private static let validJSON = """
     {"credential_issuer":"https://issuer.example.com","credential_configuration_ids":["org.iso.18013.5.1.mDL"],"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"pre-authorized_code":"SplxlOBeZQQYbYS6WxSbIA"}}}
     """
+    // swiftlint:enable line_length
 
     // ═══════════════════════════════════════════════════════════════
     // MARK: - Valid parsing
@@ -41,9 +43,11 @@ struct CredentialOfferTests {
 
         @Test("parses offer with multiple credential configuration IDs")
         func multipleConfigIds() throws {
+            // swiftlint:disable line_length
             let json = """
             {"credential_issuer":"https://issuer.example.com","credential_configuration_ids":["org.iso.18013.5.1.mDL","eu.europa.ec.eudi.pid.1"],"grants":{"urn:ietf:params:oauth:grant-type:pre-authorized_code":{"pre-authorized_code":"abc123"}}}
             """
+            // swiftlint:enable line_length
             let uri = CredentialOfferTests.makeOfferURI(json: json)
             let offer = try CredentialOffer.parse(uri)
 

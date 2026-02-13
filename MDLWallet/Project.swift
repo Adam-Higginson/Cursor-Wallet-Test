@@ -15,6 +15,13 @@ let project = Project(
                         "UIImageName": "",
                     ],
                     "NSCameraUsageDescription": "We need camera access to scan QR codes for credential issuance.",
+                    "CFBundleURLTypes": [
+                        [
+                            "CFBundleURLSchemes": ["openid-credential-offer"],
+                            "CFBundleTypeRole": "Editor",
+                            "CFBundleURLName": "OID4VCI Credential Offer",
+                        ],
+                    ],
                 ]
             ),
             buildableFolders: [

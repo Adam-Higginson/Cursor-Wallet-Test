@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct MDLWalletApp: App {
+    @State private var pendingCredentialOfferURL: URL?
+
     private let credentialRepository: CredentialRepository
     private let oid4vciClient: OID4VCIClient
 
@@ -13,9 +15,13 @@ struct MDLWalletApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(
-                credentialRepository: self.credentialRepository,
-                oid4vciClient: self.oid4vciClient
+                credentialRepository: credentialRepository,
+                oid4vciClient: oid4vciClient,
+                pendingCredentialOfferURL: $pendingCredentialOfferURL
             )
+            .onOpenURL { url in
+                pendingCredentialOfferURL = url
+            }
         }
     }
 }

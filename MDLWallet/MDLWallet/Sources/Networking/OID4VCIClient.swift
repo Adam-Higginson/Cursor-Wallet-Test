@@ -167,7 +167,7 @@ public struct OID4VCIClient: Sendable {
         do {
             (data, _) = try await httpClient.post(url: tokenEndpoint, headers: headers, body: bodyData)
         } catch {
-            throw OID4VCIError.tokenRequestFailed(error.localizedDescription)
+            throw OID4VCIError.tokenRequestFailed(describeHTTPError(error))
         }
 
         do {
@@ -208,7 +208,7 @@ public struct OID4VCIClient: Sendable {
         do {
             (data, _) = try await httpClient.post(url: endpointURL, headers: headers, body: bodyData)
         } catch {
-            throw OID4VCIError.credentialRequestFailed(error.localizedDescription)
+            throw OID4VCIError.credentialRequestFailed(describeHTTPError(error))
         }
 
         let response: CredentialResponse
@@ -230,6 +230,40 @@ public struct OID4VCIClient: Sendable {
         }
 
         return credentialData
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MARK: Private — Error description
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Turns HTTP client errors into a readable message (status code + JSON error body when present).
+    private func describeHTTPError(_ error: Error) -> String {
+        guard let httpError = error as? HTTPClientError,
+              case .httpError(let statusCode, let body) = httpError else {
+            return error.localizedDescription
+        }
+        var msg = "HTTP \(statusCode)"
+        if let snippet = parseErrorBody(body) {
+            msg += ": \(snippet)"
+        }
+        return msg
+    }
+
+    /// Extracts error_description, error, or message from a JSON response body.
+    private func parseErrorBody(_ data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            if !data.isEmpty, let raw = String(data: data, encoding: .utf8), raw.count < 200 {
+                return raw
+            }
+            return nil
+        }
+        let order = ["error_description", "error", "message"]
+        for key in order {
+            if let value = json[key] as? String, !value.isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 
     // ═══════════════════════════════════════════════════════════════

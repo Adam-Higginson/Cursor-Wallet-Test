@@ -14,13 +14,13 @@ public struct ContentView: View {
     // ───────────────────────────────────────────────────────────────────
     // MARK: State
     // ───────────────────────────────────────────────────────────────────
-    @State private var currentCredential: MDLDocument? = nil
+    @State private var currentCredential: MDLDocument?
     @State private var isLoading = true
     @State private var isErrorLoadingCredential = false
-    @State private var saveErrorMessage: String? = nil
+    @State private var saveErrorMessage: String?
     @State private var showScanner = false
     @State private var isIssuingCredential = false
-    @State private var issuanceError: String? = nil
+    @State private var issuanceError: String?
 
     public init(
         credentialRepository: CredentialRepository,
@@ -87,10 +87,10 @@ public struct ContentView: View {
     // ───────────────────────────────────────────────────────────────────
 
     private static let mdlDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeZone = TimeZone(identifier: "UTC")
-        return f
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter
     }()
 
     private var credentialFoundView: some View {
@@ -125,7 +125,9 @@ public struct ContentView: View {
                                 .foregroundStyle(.secondary)
                             ForEach(Array(doc.drivingPrivileges.enumerated()), id: \.offset) { _, privilege in
                                 let codes = privilege.vehicleCategoryCode
-                                let parts = [privilege.issueDate.map { "Issue: \(Self.mdlDateFormatter.string(from: $0))" }, privilege.expiryDate.map { "Expiry: \(Self.mdlDateFormatter.string(from: $0))" }].compactMap { $0 }
+                                let issueStr = privilege.issueDate.map { "Issue: \(Self.mdlDateFormatter.string(from: $0))" }
+                                let expiryStr = privilege.expiryDate.map { "Expiry: \(Self.mdlDateFormatter.string(from: $0))" }
+                                let parts = [issueStr, expiryStr].compactMap { $0 }
                                 Text(parts.isEmpty ? codes : "\(codes) (\(parts.joined(separator: " · ")))")
                                     .font(.body)
                             }
@@ -267,17 +269,19 @@ public struct ContentView: View {
 
     private var issuingView: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.5)
+            if issuanceError == nil {
+                ProgressView()
+                    .scaleEffect(1.5)
 
-            Text("Issuing Credential...")
-                .font(.title3)
-                .fontWeight(.semibold)
+                Text("Issuing Credential...")
+                    .font(.title3)
+                    .fontWeight(.semibold)
 
-            Text("Contacting the issuer to retrieve your mobile driver's license.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                Text("Contacting the issuer to retrieve your mobile driver's license.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             if let error = issuanceError {
                 Text(error)
@@ -386,8 +390,8 @@ public struct ContentView: View {
     /// Returns a short, user-facing message for scan/issuance errors.
     private func userFacingMessage(for error: Error) -> String {
         switch error {
-        case let e as CredentialOfferError:
-            switch e {
+        case let offerError as CredentialOfferError:
+            switch offerError {
             case .invalidScheme:
                 return "This QR code isn’t a credential offer. Use a code from the document builder."
             case .missingCredentialOfferParameter:
@@ -397,23 +401,25 @@ public struct ContentView: View {
             case .missingPreAuthorizedCode:
                 return "This credential offer doesn’t support the expected flow."
             }
-        case let e as OID4VCIError:
-            switch e {
+        case let oid4vciError as OID4VCIError:
+            switch oid4vciError {
             case .invalidIssuerURL:
                 return "Invalid issuer address in the credential offer."
             case .invalidIssuerMetadata, .tokenEndpointNotFound:
-                return "Could not reach the issuer. If you’re on a device, ensure it can reach the issuer (e.g. same Wi‑Fi as the server)."
+                return "Could not reach the issuer. If you’re on a device, ensure it can reach the issuer "
+                    + "(e.g. same Wi‑Fi as the server)."
             case .tokenRequestFailed(let msg), .credentialRequestFailed(let msg):
                 return "Issuer returned an error: \(msg)"
             case .noCredentialInResponse, .invalidCredentialEncoding:
                 return "The issuer didn’t return a valid credential."
             }
-        case let e as MDLCBORDecodeError:
-            return "Credential format error. Check Xcode console for details: \(e.reason)"
-        case let e as HTTPClientError:
-            if case .httpError(let code, let body) = e {
+        case let decodeError as MDLCBORDecodeError:
+            return "Credential format error. Check Xcode console for details: \(decodeError.reason)"
+        case let httpError as HTTPClientError:
+            if case .httpError(let code, let body) = httpError {
                 if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-                   let msg = (json["error_description"] as? String) ?? (json["message"] as? String) {
+                   let msg = (json["error_description"] as? String)
+                    ?? (json["message"] as? String) {
                     return "Issuer returned an error: HTTP \(code) – \(msg)"
                 }
                 return "Issuer returned an error: HTTP \(code)."
@@ -437,7 +443,6 @@ public struct ContentView: View {
         }
     }
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════
 // MARK: - Previews

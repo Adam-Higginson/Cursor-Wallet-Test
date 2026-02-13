@@ -66,7 +66,7 @@ public enum MDLCBORDecodeError: Error, Sendable, Equatable {
 
     public var reason: String {
         switch self {
-        case .invalidFormat(let r): return r
+        case .invalidFormat(let reason): return reason
         }
     }
 }
@@ -192,11 +192,11 @@ public enum MDLDocumentCBORCoding {
             // CRI encodes each IssuerSignedItem as CBOR tag 24 (embedded CBOR) + byte string; unwrap to get the map.
             let itemMap: [CBOR: CBOR]
             switch itemCbor {
-            case .map(let m):
-                itemMap = m
+            case .map(let map):
+                itemMap = map
             case .tagged(CBOR.Tag(rawValue: 24), .byteString(let embeddedBytes)):
-                guard let inner = try? CBOR.decode(embeddedBytes), case .map(let m) = inner else { continue }
-                itemMap = m
+                guard let inner = try? CBOR.decode(embeddedBytes), case .map(let map) = inner else { continue }
+                itemMap = map
             default:
                 continue
             }
@@ -221,7 +221,7 @@ public enum MDLDocumentCBORCoding {
 
     private static func describeTopLevelKeys(_ map: [CBOR: CBOR]) -> String {
         let keys = map.keys.compactMap { cbor -> String? in
-            if case .utf8String(let s) = cbor { return s }
+            if case .utf8String(let string) = cbor { return string }
             return nil
         }
         return keys.sorted().joined(separator: ", ")
@@ -256,11 +256,11 @@ public enum MDLDocumentCBORCoding {
     private static func stringFromCBOR(_ cbor: CBOR?) -> String? {
         guard let cbor else { return nil }
         switch cbor {
-        case .utf8String(let s):
-            return s
-        case .tagged(CBOR.Tag(rawValue: 1004), .utf8String(let s)),  // CRI LocalDate: tag 1004 + "YYYY-MM-DD"
-             .tagged(CBOR.Tag(rawValue: 0), .utf8String(let s)):     // date-time (e.g. Instant)
-            return s
+        case .utf8String(let string):
+            return string
+        case .tagged(CBOR.Tag(rawValue: 1004), .utf8String(let string)),  // CRI LocalDate: tag 1004 + "YYYY-MM-DD"
+             .tagged(CBOR.Tag(rawValue: 0), .utf8String(let string)):     // date-time (e.g. Instant)
+            return string
         default:
             return nil
         }

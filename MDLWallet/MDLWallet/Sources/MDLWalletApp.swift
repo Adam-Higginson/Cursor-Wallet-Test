@@ -8,7 +8,7 @@ struct MDLWalletApp: App {
     private let oid4vciClient: OID4VCIClient
 
     init() {
-        self.credentialRepository = InMemoryCredentialRepository()
+        self.credentialRepository = KeychainCredentialRepository()
         self.oid4vciClient = OID4VCIClient(httpClient: URLSessionHTTPClient())
     }
 

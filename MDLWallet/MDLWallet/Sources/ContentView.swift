@@ -69,13 +69,6 @@ public struct ContentView: View {
                 pendingCredentialOfferURL = nil
                 handleScannedQR(url.absoluteString)
             }
-            .onAppear {
-                // Handle cold start: app opened via openid-credential-offer:// link
-                if let url = pendingCredentialOfferURL {
-                    pendingCredentialOfferURL = nil
-                    handleScannedQR(url.absoluteString)
-                }
-            }
             .task {
                 await checkForCredential()
             }
@@ -369,9 +362,14 @@ public struct ContentView: View {
                 let credentialData = try await oid4vciClient.issueCredential(offer: offer)
                 receivedCredentialData = credentialData
 
-                // 3. Decode into document + MSO and store that object; view renders the loaded credential.
+                // 3. Decode into document + MSO, attach raw CBOR for persistence, then save.
                 print("Received credential: \(credentialData.count) bytes")
-                let stored = try MDLDocumentCBORCoding.decodeStoredCredential(credentialData)
+                let decoded = try MDLDocumentCBORCoding.decodeStoredCredential(credentialData)
+                let stored = StoredCredential(
+                    document: decoded.document,
+                    mso: decoded.mso,
+                    credentialCbor: credentialData
+                )
                 try await credentialRepository.save(stored)
                 isIssuingCredential = false
                 await checkForCredential()

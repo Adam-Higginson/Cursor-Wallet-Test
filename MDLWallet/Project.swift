@@ -14,6 +14,7 @@ let project = Project(
                         "UIColorName": "",
                         "UIImageName": "",
                     ],
+                    "NSCameraUsageDescription": "We need camera access to scan QR codes for credential issuance.",
                 ]
             ),
             buildableFolders: [

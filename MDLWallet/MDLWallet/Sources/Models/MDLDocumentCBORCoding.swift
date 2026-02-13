@@ -59,10 +59,22 @@ private func makeDateFormatter() -> DateFormatter {
 // MARK: - CBOR decode errors
 
 /// Errors when decoding an MDLDocument from CBOR.
-/// We expose only a generic invalidFormat to avoid leaking document structure to callers.
-public enum MDLCBORDecodeError: Error, Sendable {
-    /// Decoded data is not valid mDL CBOR (structure, size, or content).
-    case invalidFormat
+/// Use the `reason` for debugging; avoid showing raw details to end users.
+public enum MDLCBORDecodeError: Error, Sendable, Equatable {
+    /// Decoded data is not valid mDL CBOR. Associated string describes what failed (for logs/debugging).
+    case invalidFormat(reason: String)
+
+    public var reason: String {
+        switch self {
+        case .invalidFormat(let r): return r
+        }
+    }
+}
+
+extension MDLCBORDecodeError: LocalizedError {
+    public var errorDescription: String? {
+        "MDL CBOR decode failed: \(reason)"
+    }
 }
 
 // MARK: - MDLDocumentCBORCoding
@@ -127,47 +139,146 @@ public enum MDLDocumentCBORCoding {
 
     // MARK: Decode (Data → MDLDocument)
 
+    /// Decodes credential bytes into a stored credential (document + optional MSO).
+    /// Tries simple form first, then IssuerSigned nameSpaces; MSO is parsed if issuerAuth is present.
+    public static func decodeStoredCredential(_ data: Data) throws -> StoredCredential {
+        let document = try decodeFromCredential(data)
+        let mso = Self.decodeMSOFromCredentialIfPresent(data)
+        return StoredCredential(document: document, mso: mso)
+    }
+
+    /// Attempts to extract and decode MSO from credential CBOR (issuerAuth is a COSE_Sign1 array). Returns nil if not present or parse fails.
+    private static func decodeMSOFromCredentialIfPresent(_ data: Data) -> MobileSecurityObject? {
+        guard data.count <= CBORLimits.maxDataSize,
+              let cbor = try? CBOR.decode([UInt8](data)),
+              case let .map(topMap) = cbor else { return nil }
+        guard let issuerAuthCbor = topMap[.utf8String("issuerAuth")] else { return nil }
+        // issuerAuth is a COSE_Sign1: CBOR array [protected, unprotected, payload, signature]; re-encode and decode.
+        let coseBytes = Data(issuerAuthCbor.encode())
+        guard let msoResult = try? MSOCBORCoding.decode(coseBytes) else { return nil }
+        return msoResult.mso
+    }
+
+    /// Decodes credential bytes (simple namespace map or IssuerSigned) into an `MDLDocument`.
+    /// Tries simple form first: { "org.iso.18013.5.1": { "family_name": "...", ... } }.
+    /// If that fails, tries IssuerSigned: { "nameSpaces": { "org.iso.18013.5.1": [ { "elementIdentifier", "elementValue" }, ... ] } }.
+    public static func decodeFromCredential(_ data: Data) throws -> MDLDocument {
+        guard data.count <= CBORLimits.maxDataSize else {
+            throw MDLCBORDecodeError.invalidFormat(reason: "payload too large (\(data.count) bytes, max \(CBORLimits.maxDataSize))")
+        }
+        let bytes = [UInt8](data)
+        guard let cbor = try? CBOR.decode(bytes) else {
+            throw MDLCBORDecodeError.invalidFormat(reason: "CBOR parse failed (not valid CBOR)")
+        }
+        guard case let .map(topMap) = cbor else {
+            throw MDLCBORDecodeError.invalidFormat(reason: "top-level is not a CBOR map")
+        }
+        let namespaceKey = CBOR.utf8String(ISO180135.namespace)
+        let dateFormatter = makeDateFormatter()
+
+        // Try simple form: top-level key is namespace, value is items map.
+        if let itemsCbor = topMap[namespaceKey], case let .map(itemsMap) = itemsCbor {
+            return try parseDocument(from: itemsMap, dateFormatter: dateFormatter)
+        }
+
+        // Try IssuerSigned: "nameSpaces" -> map -> "org.iso.18013.5.1" -> array of IssuerSignedItem.
+        guard let nameSpacesCbor = topMap[.utf8String("nameSpaces")], case let .map(nameSpacesMap) = nameSpacesCbor,
+              let itemsArrayCbor = nameSpacesMap[.utf8String(ISO180135.namespace)], case let .array(itemsArray) = itemsArrayCbor else {
+            let topKeys = describeTopLevelKeys(topMap)
+            throw MDLCBORDecodeError.invalidFormat(reason: "expected simple namespace map or IssuerSigned nameSpaces with '\(ISO180135.namespace)'; top-level keys: \(topKeys)")
+        }
+        var itemsMap: [CBOR: CBOR] = [:]
+        for itemCbor in itemsArray {
+            // CRI encodes each IssuerSignedItem as CBOR tag 24 (embedded CBOR) + byte string; unwrap to get the map.
+            let itemMap: [CBOR: CBOR]
+            switch itemCbor {
+            case .map(let m):
+                itemMap = m
+            case .tagged(CBOR.Tag(rawValue: 24), .byteString(let embeddedBytes)):
+                guard let inner = try? CBOR.decode(embeddedBytes), case .map(let m) = inner else { continue }
+                itemMap = m
+            default:
+                continue
+            }
+            guard case let .utf8String(elementIdentifier) = itemMap[.utf8String("elementIdentifier")],
+                  let elementValue = itemMap[.utf8String("elementValue")] else {
+                continue
+            }
+            itemsMap[.utf8String(elementIdentifier)] = elementValue
+        }
+        return try parseDocument(from: itemsMap, dateFormatter: dateFormatter)
+    }
+
+    /// Returns a short description of top-level CBOR map keys for debug logging (no values).
+    public static func describeCredentialStructure(_ data: Data) -> String {
+        guard data.count <= CBORLimits.maxDataSize,
+              let cbor = try? CBOR.decode([UInt8](data)),
+              case let .map(topMap) = cbor else {
+            return "not a map or CBOR parse failed"
+        }
+        return describeTopLevelKeys(topMap)
+    }
+
+    private static func describeTopLevelKeys(_ map: [CBOR: CBOR]) -> String {
+        let keys = map.keys.compactMap { cbor -> String? in
+            if case .utf8String(let s) = cbor { return s }
+            return nil
+        }
+        return keys.sorted().joined(separator: ", ")
+    }
+
     /// Decodes CBOR data into an `MDLDocument` per ISO 18013-5 §7.
     /// Expects structure: { "org.iso.18013.5.1": { "family_name": "...", ... } }.
     /// Rejects payloads exceeding size or structural limits.
     public static func decode(_ data: Data) throws -> MDLDocument {
         guard data.count <= CBORLimits.maxDataSize else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "payload too large")
         }
         let bytes = [UInt8](data)
         guard let cbor = try? CBOR.decode(bytes) else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "CBOR parse failed")
         }
         guard case let .map(topMap) = cbor else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "top-level is not a map")
         }
         let namespaceKey = CBOR.utf8String(ISO180135.namespace)
         guard let itemsCbor = topMap[namespaceKey] else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "namespace '\(ISO180135.namespace)' missing")
         }
         guard case let .map(itemsMap) = itemsCbor else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "namespace value is not a map")
         }
         let dateFormatter = makeDateFormatter()
         return try parseDocument(from: itemsMap, dateFormatter: dateFormatter)
     }
 
+    /// CRI encodes LocalDate as tag 1004 (RFC 8943 full-date) + text string; accept plain string or tagged.
+    private static func stringFromCBOR(_ cbor: CBOR?) -> String? {
+        guard let cbor else { return nil }
+        switch cbor {
+        case .utf8String(let s):
+            return s
+        case .tagged(CBOR.Tag(rawValue: 1004), .utf8String(let s)),  // CRI LocalDate: tag 1004 + "YYYY-MM-DD"
+             .tagged(CBOR.Tag(rawValue: 0), .utf8String(let s)):     // date-time (e.g. Instant)
+            return s
+        default:
+            return nil
+        }
+    }
+
     private static func parseDocument(from itemsMap: [CBOR: CBOR], dateFormatter: DateFormatter) throws -> MDLDocument {
         func requiredString(_ key: String) throws -> String {
-            guard let cborValue = itemsMap[.utf8String(key)], case let .utf8String(string) = cborValue else {
-                throw MDLCBORDecodeError.invalidFormat
+            guard let string = stringFromCBOR(itemsMap[.utf8String(key)]) else {
+                throw MDLCBORDecodeError.invalidFormat(reason: "missing or non-string required field '\(key)'")
             }
             return string
         }
         func optionalString(_ key: String) -> String? {
-            guard let cborValue = itemsMap[.utf8String(key)], case let .utf8String(string) = cborValue else {
-                return nil
-            }
-            return string
+            stringFromCBOR(itemsMap[.utf8String(key)])
         }
         func parseDate(key: String, value: String) throws -> Date {
             guard let date = dateFormatter.date(from: value) else {
-                throw MDLCBORDecodeError.invalidFormat
+                throw MDLCBORDecodeError.invalidFormat(reason: "invalid date format for '\(key)' (expected YYYY-MM-DD): '\(value)'")
             }
             return date
         }
@@ -212,28 +323,28 @@ public enum MDLDocumentCBORCoding {
 
     private static func parseDrivingPrivileges(from itemsMap: [CBOR: CBOR], dateFormatter: DateFormatter) throws -> [DrivingPrivilege] {
         guard let privCbor = itemsMap[.utf8String(ISO180135.Key.drivingPrivileges)], case let .array(privArray) = privCbor else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "missing or non-array 'driving_privileges'")
         }
         var result: [DrivingPrivilege] = []
         for item in privArray {
-            guard case let .map(entry) = item else { throw MDLCBORDecodeError.invalidFormat }
-            guard case let .utf8String(vehicleCategoryCode) = entry[.utf8String(ISO180135.Key.vehicleCategoryCode)] else {
-                throw MDLCBORDecodeError.invalidFormat
+            guard case let .map(entry) = item else {
+                throw MDLCBORDecodeError.invalidFormat(reason: "driving_privileges entry is not a map")
+            }
+            guard let vehicleCategoryCode = stringFromCBOR(entry[.utf8String(ISO180135.Key.vehicleCategoryCode)]) else {
+                throw MDLCBORDecodeError.invalidFormat(reason: "driving_privileges entry missing 'vehicle_category_code'")
             }
             let issueDate = parseOptionalDate(from: entry, key: ISO180135.Key.privilegeIssueDate, dateFormatter: dateFormatter)
             let expiryDate = parseOptionalDate(from: entry, key: ISO180135.Key.privilegeExpiryDate, dateFormatter: dateFormatter)
             result.append(DrivingPrivilege(vehicleCategoryCode: vehicleCategoryCode, issueDate: issueDate, expiryDate: expiryDate))
         }
         guard !result.isEmpty else {
-            throw MDLCBORDecodeError.invalidFormat
+            throw MDLCBORDecodeError.invalidFormat(reason: "driving_privileges array is empty")
         }
         return result
     }
 
     private static func parseOptionalDate(from entry: [CBOR: CBOR], key: String, dateFormatter: DateFormatter) -> Date? {
-        guard let cborValue = entry[.utf8String(key)], case let .utf8String(string) = cborValue else {
-            return nil
-        }
+        guard let string = stringFromCBOR(entry[.utf8String(key)]) else { return nil }
         return dateFormatter.date(from: string)
     }
 }

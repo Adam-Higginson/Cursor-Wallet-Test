@@ -150,6 +150,21 @@ struct ModelDecodingTests {
             #expect(response.credential == nil)
             #expect(response.transactionId == "txn_abc123")
         }
+
+        @Test("decodes credentials array (CRI shape)")
+        func credentialsArrayResponse() throws {
+            let json = Data("""
+            {
+                "credentials": [{"credential": "aGVsbG9fbWRvYw"}],
+                "notification_id": "1143910d-b9d0-4cdb-a2d2-046e2bf8f55b"
+            }
+            """.utf8)
+
+            let response = try JSONDecoder().decode(CredentialResponse.self, from: json)
+
+            #expect(response.credential == "aGVsbG9fbWRvYw")
+            #expect(response.notificationId == "1143910d-b9d0-4cdb-a2d2-046e2bf8f55b")
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

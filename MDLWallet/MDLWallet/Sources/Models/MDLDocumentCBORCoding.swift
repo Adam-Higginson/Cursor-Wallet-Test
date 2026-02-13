@@ -52,7 +52,7 @@ private func makeDateFormatter() -> DateFormatter {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd"
     formatter.timeZone = TimeZone(identifier: "UTC")
-    formatter.locale = Locale(identifier: "en_GB_POSIX")
+    formatter.locale = Locale(identifier: "en_US_POSIX")
     return formatter
 }
 

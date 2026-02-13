@@ -1,12 +1,17 @@
 name: AI Code Review
 
 # Disabled: running AI review locally for now.
-# To re-enable, uncomment the pull_request trigger below.
-#on:
-#  pull_request:
-#    types: [opened, synchronize, reopened]
+# To re-enable, replace `workflow_dispatch` with:
+#   pull_request:
+#     types: [opened, synchronize, reopened]
+# and remove the workflow_dispatch inputs block.
 on:
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to review'
+        required: true
+        type: string
 
 jobs:
   ai-review:
@@ -49,14 +54,31 @@ jobs:
           sudo apt update
           sudo apt install gh -y
       
+      - name: Resolve PR metadata
+        if: steps.changed-files.outputs.any_changed == 'true'
+        id: pr-meta
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          if [ -z "$PR" ]; then
+            echo "::error::No PR number available (set inputs.pr_number for workflow_dispatch)"
+            exit 1
+          fi
+          echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+          HEAD=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+          echo "head_sha=$HEAD" >> "$GITHUB_OUTPUT"
+          BASE=$(gh pr view "$PR" --json baseRefName -q .baseRefName)
+          echo "base_ref=$BASE" >> "$GITHUB_OUTPUT"
+
       - name: AI Code Review
         if: steps.changed-files.outputs.any_changed == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr-meta.outputs.pr_number }}
           REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ steps.pr-meta.outputs.base_ref }}
+          HEAD_SHA: ${{ steps.pr-meta.outputs.head_sha }}
         run: |
           python .github/scripts/ai_review.py

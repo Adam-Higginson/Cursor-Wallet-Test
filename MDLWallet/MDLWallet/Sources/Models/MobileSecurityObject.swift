@@ -14,6 +14,14 @@ import Foundation
 /// Carried inside a COSE_Sign1 structure signed by the issuer.
 public struct MobileSecurityObject: Sendable, Equatable {
 
+    /// MSO version string (e.g. "1.0").
+    /// ISO 18013-5 §9.1.2.4 — mandatory field.
+    public let version: String
+
+    /// Digest algorithm used for valueDigests (e.g. "SHA-256", "SHA-384", "SHA-512").
+    /// ISO 18013-5 §9.1.2.4 — mandatory field.
+    public let digestAlgorithm: String
+
     /// Document type (e.g. "org.iso.18013.5.1.mDL").
     public let docType: String
 
@@ -26,14 +34,19 @@ public struct MobileSecurityObject: Sendable, Equatable {
     /// Digests of issuer-signed data elements, keyed by namespace then digest ID.
     /// Readers verify disclosed claims against these digests.
     /// Structure: namespace → (digestID → digestBytes)
-    public let valueDigests: [String: [String: Data]]
+    /// Digest IDs are unsigned integers per ISO 18013-5.
+    public let valueDigests: [String: [UInt64: Data]]
 
     public init(
+        version: String,
+        digestAlgorithm: String,
         docType: String,
         validityInfo: MSOValidityInfo,
         deviceKeyInfo: MSODeviceKeyInfo,
-        valueDigests: [String: [String: Data]]
+        valueDigests: [String: [UInt64: Data]]
     ) {
+        self.version = version
+        self.digestAlgorithm = digestAlgorithm
         self.docType = docType
         self.validityInfo = validityInfo
         self.deviceKeyInfo = deviceKeyInfo
@@ -46,15 +59,24 @@ public struct MobileSecurityObject: Sendable, Equatable {
 /// Validity period for the MSO (ISO 18013-5 §9.1.2.4).
 public struct MSOValidityInfo: Sendable, Equatable {
 
+    /// Date-time when the MSO was signed by the issuer.
+    /// Mandatory per ISO 18013-5 §9.1.2.4.
+    public let signed: Date
+
     /// Start of validity (ISO 8601 date-time, UTC).
     public let validFrom: Date
 
     /// End of validity (ISO 8601 date-time, UTC).
     public let validUntil: Date
 
-    public init(validFrom: Date, validUntil: Date) {
+    /// Expected next update. Optional per ISO 18013-5 §9.1.2.4.
+    public let expectedUpdate: Date?
+
+    public init(signed: Date, validFrom: Date, validUntil: Date, expectedUpdate: Date? = nil) {
+        self.signed = signed
         self.validFrom = validFrom
         self.validUntil = validUntil
+        self.expectedUpdate = expectedUpdate
     }
 }
 

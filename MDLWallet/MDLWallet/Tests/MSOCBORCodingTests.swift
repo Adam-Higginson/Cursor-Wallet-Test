@@ -516,8 +516,8 @@ struct MSOCBORCodingTests {
         @Test("throws tooManyNamespaces when valueDigests has too many namespaces")
         func tooManyNamespaces() {
             var nsMap: [CBOR: CBOR] = [:]
-            for i in 0..<129 {
-                nsMap[.utf8String("ns\(i)")] = .map([
+            for idx in 0..<129 {
+                nsMap[.utf8String("ns\(idx)")] = .map([
                     .unsignedInt(0): .byteString(Array(repeating: 0xAB, count: 32))
                 ])
             }
@@ -531,8 +531,8 @@ struct MSOCBORCodingTests {
         @Test("throws tooManyDigestsPerNamespace when namespace has too many entries")
         func tooManyDigestsPerNamespace() {
             var labels: [CBOR: CBOR] = [:]
-            for i: UInt64 in 0..<257 {
-                labels[.unsignedInt(i)] = .byteString(Array(repeating: 0xAB, count: 32))
+            for idx: UInt64 in 0..<257 {
+                labels[.unsignedInt(idx)] = .byteString(Array(repeating: 0xAB, count: 32))
             }
             let payloadMap = MSOCBORCodingTests.makeValidPayloadMap(
                 valueDigests: [.utf8String("org.iso.18013.5.1"): .map(labels)]

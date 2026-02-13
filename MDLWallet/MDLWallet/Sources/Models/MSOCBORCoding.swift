@@ -310,7 +310,7 @@ public enum MSOCBORCoding {
         guard mso.validityInfo.validFrom < mso.validityInfo.validUntil else {
             throw MSOCBOREncodeError.invalidField("validFrom must be before validUntil")
         }
-        guard mso.deviceKeyInfo.deviceKey.count > 0 else {
+        guard !mso.deviceKeyInfo.deviceKey.isEmpty else {
             throw MSOCBOREncodeError.invalidField("deviceKey must not be empty")
         }
     }
